@@ -7,6 +7,24 @@
 
 import UIKit
 
+extension String {
+    func decodingHTMLEntities() -> String {
+        guard let data = self.data(using: .utf8) else { return self }
+        
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
+        
+        guard let decodedString = try? NSAttributedString(data: data, options: options, documentAttributes: nil).string else {
+            return self
+        }
+        
+        return decodedString
+    }
+}
+
+
 class TriviaViewController: UIViewController {
   
   @IBOutlet weak var currentQuestionNumberLabel: UILabel!
@@ -27,42 +45,77 @@ class TriviaViewController: UIViewController {
     addGradient()
     questionContainerView.layer.cornerRadius = 8.0
     // TODO: FETCH TRIVIA QUESTIONS HERE
+    fetchTriviaQuestions()
   }
+    
+    private func fetchTriviaQuestions() {
+        TriviaQuestionService().fetchTriviaQuestions { [weak self] questions in
+            DispatchQueue.main.async {
+                guard let questions = questions else { return }
+                self?.questions = questions
+                self?.updateQuestion(withQuestionIndex: self?.currQuestionIndex ?? 0)
+            }
+        }
+    }
   
-  private func updateQuestion(withQuestionIndex questionIndex: Int) {
-    currentQuestionNumberLabel.text = "Question: \(questionIndex + 1)/\(questions.count)"
-    let question = questions[questionIndex]
-    questionLabel.text = question.question
-    categoryLabel.text = question.category
-    let answers = ([question.correctAnswer] + question.incorrectAnswers).shuffled()
-    if answers.count > 0 {
-      answerButton0.setTitle(answers[0], for: .normal)
+    
+    private func updateQuestion(withQuestionIndex questionIndex: Int) {
+        currentQuestionNumberLabel.text = "Question: \(questionIndex + 1)/\(questions.count)"
+        let question = questions[questionIndex]
+        
+        questionLabel.text = question.question.decodingHTMLEntities()
+        categoryLabel.text = question.category
+        
+        let isTrueFalseQuestion = question.incorrectAnswers.count == 1
+        
+        let correctAnswer = question.correctAnswer.decodingHTMLEntities()
+        let incorrectAnswer = question.incorrectAnswers.first?.decodingHTMLEntities() ?? "N/A"
+        
+        answerButton0.setTitle(correctAnswer, for: .normal)
+        answerButton1.setTitle(incorrectAnswer, for: .normal)
+        
+        if isTrueFalseQuestion {
+            answerButton2.isHidden = true
+            answerButton3.isHidden = true
+        } else {
+            let answers = ([question.correctAnswer] + question.incorrectAnswers).shuffled().map { $0.decodingHTMLEntities() }
+            answerButton0.setTitle(answers[0], for: .normal)
+            answerButton1.setTitle(answers[1], for: .normal)
+            answerButton2.setTitle(answers[2], for: .normal)
+            answerButton3.setTitle(answers[3], for: .normal)
+            answerButton2.isHidden = false
+            answerButton3.isHidden = false
+        }
     }
-    if answers.count > 1 {
-      answerButton1.setTitle(answers[1], for: .normal)
-      answerButton1.isHidden = false
+
+   
+    private func updateToNextQuestion(answer: String, sender: UIButton) {
+        let correct = isCorrectAnswer(answer)
+        
+        sender.backgroundColor = correct ? .green : .red
+        
+        if correct {
+            numCorrectQuestions += 1
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.resetButtonColors()
+            
+            self?.currQuestionIndex += 1
+            guard self?.currQuestionIndex ?? 0 < self?.questions.count ?? 0 else {
+                self?.showFinalScore()
+                return
+            }
+            self?.updateQuestion(withQuestionIndex: self?.currQuestionIndex ?? 0)
+        }
     }
-    if answers.count > 2 {
-      answerButton2.setTitle(answers[2], for: .normal)
-      answerButton2.isHidden = false
+
+    private func resetButtonColors() {
+        answerButton0.backgroundColor = .clear
+        answerButton1.backgroundColor = .clear
+        answerButton2.backgroundColor = .clear
+        answerButton3.backgroundColor = .clear
     }
-    if answers.count > 3 {
-      answerButton3.setTitle(answers[3], for: .normal)
-      answerButton3.isHidden = false
-    }
-  }
-  
-  private func updateToNextQuestion(answer: String) {
-    if isCorrectAnswer(answer) {
-      numCorrectQuestions += 1
-    }
-    currQuestionIndex += 1
-    guard currQuestionIndex < questions.count else {
-      showFinalScore()
-      return
-    }
-    updateQuestion(withQuestionIndex: currQuestionIndex)
-  }
   
   private func isCorrectAnswer(_ answer: String) -> Bool {
     return answer == questions[currQuestionIndex].correctAnswer
@@ -75,12 +128,15 @@ class TriviaViewController: UIViewController {
     let resetAction = UIAlertAction(title: "Restart", style: .default) { [unowned self] _ in
       currQuestionIndex = 0
       numCorrectQuestions = 0
-      updateQuestion(withQuestionIndex: currQuestionIndex)
+      
+      self.questions.removeAll()
+      fetchTriviaQuestions()
+
     }
     alertController.addAction(resetAction)
     present(alertController, animated: true, completion: nil)
   }
-  
+    
   private func addGradient() {
     let gradientLayer = CAGradientLayer()
     gradientLayer.frame = view.bounds
@@ -92,19 +148,19 @@ class TriviaViewController: UIViewController {
   }
   
   @IBAction func didTapAnswerButton0(_ sender: UIButton) {
-    updateToNextQuestion(answer: sender.titleLabel?.text ?? "")
+    updateToNextQuestion(answer: sender.titleLabel?.text ?? "", sender: sender)
   }
   
   @IBAction func didTapAnswerButton1(_ sender: UIButton) {
-    updateToNextQuestion(answer: sender.titleLabel?.text ?? "")
+    updateToNextQuestion(answer: sender.titleLabel?.text ?? "" , sender: sender)
   }
   
   @IBAction func didTapAnswerButton2(_ sender: UIButton) {
-    updateToNextQuestion(answer: sender.titleLabel?.text ?? "")
+    updateToNextQuestion(answer: sender.titleLabel?.text ?? "" , sender: sender)
   }
   
   @IBAction func didTapAnswerButton3(_ sender: UIButton) {
-    updateToNextQuestion(answer: sender.titleLabel?.text ?? "")
+    updateToNextQuestion(answer: sender.titleLabel?.text ?? "" , sender: sender)
   }
 }
 
