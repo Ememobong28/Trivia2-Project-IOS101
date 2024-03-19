@@ -2,7 +2,7 @@
 
 Submitted by: **Immanuella Emem Umoren**
 
-**Trivia** is an app that 
+**Trivia** is an app that quizzes you on questions, you have questions in different categories and 4 answer options, there are also true or false questions as well, these questions are gotten from the Open Trivia Database API.
 
 Time spent: **6** hours spent in total
 
